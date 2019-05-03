@@ -11,6 +11,7 @@ export default function createPersistor (store, config) {
   const whitelist = config.whitelist || false
   const transforms = config.transforms || []
   const debounce = config.debounce || false
+  const synchronousWrites = config.synchronousWrites || false
   const keyPrefix = config.keyPrefix !== undefined ? config.keyPrefix : KEY_PREFIX
 
   // pluggable state shape (e.g. immutablejs)
@@ -46,23 +47,31 @@ export default function createPersistor (store, config) {
     const len = storesToProcess.length
 
     // time iterator (read: debounce)
-    if (timeIterator === null) {
+    if (synchronousWrites) {
+      while (storesToProcess.length) {
+        const key = storesToProcess.shift();
+        writeChanges(key)
+      }
+    } else if (timeIterator === null) {
       timeIterator = setInterval(() => {
         if ((paused && len === storesToProcess.length) || storesToProcess.length === 0) {
           clearInterval(timeIterator)
           timeIterator = null
           return
         }
-
-        let key = storesToProcess.shift()
-        let storageKey = createStorageKey(key)
-        let endState = transforms.reduce((subState, transformer) => transformer.in(subState, key), stateGetter(store.getState(), key))
-        if (typeof endState !== 'undefined') storage.setItem(storageKey, serializer(endState), warnIfSetError(key))
+        const key = storesToProcess.shift();
+        writeChanges(key)
       }, debounce)
     }
 
     lastState = state
   })
+
+  function writeChanges(key) {
+    let storageKey = createStorageKey(key)
+    let endState = transforms.reduce((subState, transformer) => transformer.in(subState, key), stateGetter(store.getState(), key))
+    if (typeof endState !== 'undefined') storage.setItem(storageKey, serializer(endState), warnIfSetError(key))
+  }
 
   function passWhitelistBlacklist (key) {
     if (whitelist && whitelist.indexOf(key) === -1) return false

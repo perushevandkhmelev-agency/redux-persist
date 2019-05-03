@@ -22,6 +22,7 @@ declare type Config = {
   storage?: Storage,
   transforms?: Array<Object>,
   debounce?: number,
+  synchronousWrites?: boolean,
   serialize?: boolean,
   keyPrefix?: string,
 }
